@@ -12,28 +12,45 @@ function App() {
   const [apiKey, setApiKey] = useState(localStorage.getItem("apiKey") || "");
 
   const [tickers, setTickers] = useState("");
+  const [debouncedTickers, setDebouncedTickers] = useState("");
 
   const [stockData, setStockData] = useState([]);
 
-  // store the API key in local storage
-  useEffect(() => {
-    localStorage.setItem("apiKey", apiKey);
+  let ws = null;
 
-    if (apiKey) {
+  // Debounce search term
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedTickers(tickers), 300);
+    return () => clearTimeout(handler);
+  }, [tickers]);
+
+  useEffect(() => {
+    console.log("updating tickers");
+    const tickerArray = debouncedTickers
+      .toUpperCase()
+      .replaceAll(" ", "")
+      .split(",");
+
+    if (apiKey && tickerArray[0] !== "") {
+      console.log("subscribing");
       const ws = initializeWebSocket(apiKey);
-      subscribePolygon(ws, (newData) => {
+      subscribePolygon(ws, tickerArray, (newData) => {
         setStockData((prevData) => {
           const updatedData = { ...prevData };
-          updatedData[newData.sym] = newData;
+          updatedData[newData[0].sym] = newData[0];
           return updatedData;
         });
       });
-
       return () => {
         // Make sure to close the WebSocket when the component unmounts
         if (ws) ws.close();
       };
     }
+  }, [debouncedTickers]);
+
+  // store the API key in local storage
+  useEffect(() => {
+    localStorage.setItem("apiKey", apiKey);
   }, [apiKey]);
 
   const openModal = () => setModalIsOpen(true);
@@ -97,7 +114,9 @@ function App() {
           />
         </div>
       </div>
-      <StockTable data={stockData} />
+      <div className="p-4">
+        <StockTable data={stockData} />
+      </div>
 
       <Modal
         isOpen={modalIsOpen}
